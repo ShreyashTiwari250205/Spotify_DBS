@@ -1,0 +1,87 @@
+@import "tailwindcss";
+
+@theme {
+  --color-spotify-green: #1DB954;
+  --color-spotify-green-dark: #1AA34A;
+  --color-spotify-black: #121212;
+  --color-spotify-dark: #181818;
+  --color-spotify-card: #282828;
+  --color-spotify-hover: #2a2a2a;
+  --color-spotify-light: #b3b3b3;
+  --color-spotify-text: #ffffff;
+  --color-spotify-subtle: #a7a7a7;
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #ffffff33; border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: #ffffff55; }
+
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--color-spotify-black);
+  color: var(--color-spotify-text);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+* { box-sizing: border-box; }
+
+/* Custom utilities */
+.glass {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, #1DB954, #1ed760);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.hover-card {
+  transition: all 0.3s ease;
+}
+.hover-card:hover {
+  background: var(--color-spotify-hover);
+  transform: translateY(-2px);
+}
+
+.play-button-overlay {
+  opacity: 0;
+  transform: translateY(8px);
+  transition: all 0.3s ease;
+}
+.hover-card:hover .play-button-overlay {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in {
+  animation: fadeIn 0.4s ease forwards;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-slide-up {
+  animation: slideUp 0.5s ease forwards;
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 5px rgba(29, 185, 84, 0.4); }
+  50% { box-shadow: 0 0 20px rgba(29, 185, 84, 0.8); }
+}
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
