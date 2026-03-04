@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Search, Library, ListMusic, Heart, BarChart3, Settings, LogOut, Music2, Sparkles } from 'lucide-react';
+import { Home, Search, Library, ListMusic, Heart, BarChart3, Settings, LogOut, Music2, Sparkles, Mic2 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar() {
@@ -45,6 +45,7 @@ export default function Sidebar() {
 
                 <p className="px-4 mb-2 text-[11px] font-semibold uppercase tracking-widest text-spotify-subtle">Management</p>
                 <NavLink to="/charts" className={linkClass}><BarChart3 size={18} />Top Charts</NavLink>
+                {user?.artist_id && <NavLink to="/artist-dashboard" className={linkClass}><Mic2 size={18} />My Catalog</NavLink>}
                 <NavLink to="/admin" className={linkClass}><Settings size={18} />Admin Panel</NavLink>
             </nav>
 

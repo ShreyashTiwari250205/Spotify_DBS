@@ -5,7 +5,7 @@ import { useAuth } from '../context/AuthContext';
 import { isLiked, toggleLike } from '../services/api';
 
 export default function PlayerBar() {
-    const { currentSong, isPlaying, progress, volume, togglePlay, seek, changeVolume } = usePlayer();
+    const { currentSong, isPlaying, progress, volume, togglePlay, seek, changeVolume, skipNext, skipBack } = usePlayer();
     const { user } = useAuth();
     const [liked, setLiked] = useState(false);
     const [likeLoading, setLikeLoading] = useState(false);
@@ -73,11 +73,11 @@ export default function PlayerBar() {
             <div className="flex-1 flex flex-col items-center gap-1 max-w-[45%]">
                 <div className="flex items-center gap-5">
                     <button className="text-spotify-subtle hover:text-white transition"><Shuffle size={16} /></button>
-                    <button className="text-spotify-subtle hover:text-white transition"><SkipBack size={18} /></button>
+                    <button onClick={skipBack} className="text-spotify-subtle hover:text-white transition"><SkipBack size={18} /></button>
                     <button onClick={togglePlay} className="w-9 h-9 rounded-full bg-white flex items-center justify-center hover:scale-105 transition">
                         {isPlaying ? <Pause size={16} className="text-black" /> : <Play size={16} className="text-black ml-0.5" />}
                     </button>
-                    <button className="text-spotify-subtle hover:text-white transition"><SkipForward size={18} /></button>
+                    <button onClick={skipNext} className="text-spotify-subtle hover:text-white transition"><SkipForward size={18} /></button>
                     <button className="text-spotify-subtle hover:text-white transition"><Repeat size={16} /></button>
                 </div>
                 <div className="flex items-center gap-2 w-full">

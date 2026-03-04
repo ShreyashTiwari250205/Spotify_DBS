@@ -16,6 +16,7 @@ import AlbumPage from './pages/AlbumPage';
 import ChartsPage from './pages/ChartsPage';
 import AdminPage from './pages/AdminPage';
 import WrappedPage from './pages/WrappedPage';
+import ArtistDashboard from './pages/ArtistDashboard';
 
 function ProtectedRoute() {
   const { user, loading } = useAuth();
@@ -58,6 +59,7 @@ function App() {
             <Route path="/charts" element={<ChartsPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/wrapped" element={<WrappedPage />} />
+            <Route path="/artist-dashboard" element={<ArtistDashboard />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

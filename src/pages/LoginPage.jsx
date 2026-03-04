@@ -7,6 +7,8 @@ const demoAccounts = [
     { email: 'demo@spotify.dbs', name: 'Demo User' },
     { email: 'shreyas@spotify.dbs', name: 'Shreyas M' },
     { email: 'admin@spotify.dbs', name: 'Admin Panel' },
+    { email: 'drift@spotify.dbs', name: '🎤 Drift Theory (Artist)' },
+    { email: 'neon@spotify.dbs', name: '🎤 Neon Fable (Artist)' },
 ];
 
 export default function LoginPage() {

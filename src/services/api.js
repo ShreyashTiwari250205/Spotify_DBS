@@ -99,13 +99,7 @@ export async function getSongArtists(songId) {
     return (data || []).map(p => ({ ...p.artist, role: p.role }));
 }
 
-export async function getArtistSongs(artistId) {
-    const { data } = await supabase
-        .from('performs')
-        .select('*, song(*)')
-        .eq('artist_id', Number(artistId));
-    return (data || []).map(p => ({ ...p.song, role: p.role })).filter(s => s.title);
-}
+
 
 // ── Users ─────────────────────────────────
 export async function getUsers() {
@@ -465,3 +459,40 @@ export async function removeFromPlaylist(playlistId, songId) {
         .eq('song_id', Number(songId));
 }
 
+
+
+// Get all songs for a specific artist
+export async function getArtistSongs(artistId) {
+    const { data: performs } = await supabase.from('performs').select('song_id, role').eq('artist_id', Number(artistId));
+    if (!performs || performs.length === 0) return [];
+    const songIds = performs.map(p => p.song_id);
+    const { data: songs } = await supabase.from('song').select('*').in('song_id', songIds).order('song_id', { ascending: false });
+    return (songs || []).map(s => {
+        const p = performs.find(p => p.song_id === s.song_id);
+        return { ...s, role: p?.role || 'Lead' };
+    });
+}
+
+// Get all albums for a specific artist
+export async function getArtistAlbums(artistId) {
+    const { data } = await supabase.from('album').select('*').eq('artist_id', Number(artistId)).order('release_date', { ascending: false });
+    return data || [];
+}
+
+// Create a new album for an artist
+export async function addAlbum(album) {
+    const { data, error } = await supabase.from('album').insert([album]).select().single();
+    if (error) throw new Error(`Add album failed: ${error.message}`);
+    return data;
+}
+
+// Create a performs entry (link artist to song)
+export async function addPerforms(artistId, songId, role = 'Lead') {
+    const { data, error } = await supabase.from('performs').insert([{
+        artist_id: Number(artistId),
+        song_id: Number(songId),
+        role,
+    }]).select().single();
+    if (error) throw new Error(`Add performs failed: ${error.message}`);
+    return data;
+}
