@@ -149,6 +149,11 @@ ALTER TABLE subscription DROP CONSTRAINT IF EXISTS chk_sub_min_duration;
 ALTER TABLE subscription ADD CONSTRAINT chk_sub_min_duration
     CHECK (end_date >= start_date + INTERVAL '1 day');
 
+-- Enforce 1:1 relationship between User and Subscription
+ALTER TABLE subscription DROP CONSTRAINT IF EXISTS uq_subscription_user;
+ALTER TABLE subscription ADD CONSTRAINT uq_subscription_user 
+    UNIQUE (user_id);
+
 -- Playlist name must not be empty
 ALTER TABLE playlist DROP CONSTRAINT IF EXISTS chk_playlist_name_nonempty;
 ALTER TABLE playlist ADD CONSTRAINT chk_playlist_name_nonempty

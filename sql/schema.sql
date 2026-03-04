@@ -66,10 +66,10 @@ CREATE TABLE users (
 );
 
 -- ── 6. Subscription ──────────────────────────
--- Relationship: User (1) → (N) Subscription
+-- Relationship: User (1) - (1) Subscription
 CREATE TABLE subscription (
     subscription_id SERIAL PRIMARY KEY,
-    user_id         INT REFERENCES users(user_id) ON DELETE CASCADE,
+    user_id         INT UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
     start_date      DATE NOT NULL,
     end_date        DATE NOT NULL CHECK (end_date > start_date),
     plan_type       VARCHAR(50) CHECK (plan_type IN ('Premium', 'Family')),
