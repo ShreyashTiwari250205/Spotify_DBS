@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
-import { Play } from 'lucide-react';
+import { Play, Heart } from 'lucide-react';
 import { usePlayer } from '../context/PlayerContext';
-import { getArtistById, getAlbumById } from '../services/api';
+import { getArtistById, isLiked, toggleLike } from '../services/api';
+import { useAuth } from '../context/AuthContext';
 
 export function ArtistCard({ artist }) {
     return (
@@ -27,7 +28,6 @@ export function ArtistCard({ artist }) {
 
 export function AlbumCard({ album }) {
     const [artistName, setArtistName] = useState('');
-    const { playAlbum } = usePlayer();
 
     useEffect(() => {
         getArtistById(album.artist_id).then(a => setArtistName(a?.artist_name || ''));
@@ -53,9 +53,28 @@ export function AlbumCard({ album }) {
     );
 }
 
-export function SongRow({ song, index, showAlbum = false }) {
+export function SongRow({ song, index, showAlbum = false, onLikeChange }) {
     const { playSong, currentSong, isPlaying } = usePlayer();
+    const { user } = useAuth();
+    const [liked, setLiked] = useState(false);
+    const [likeLoading, setLikeLoading] = useState(false);
     const isCurrentlyPlaying = currentSong?.song_id === song.song_id;
+
+    useEffect(() => {
+        if (user && song.song_id) {
+            isLiked(user.user_id, song.song_id).then(setLiked);
+        }
+    }, [user, song.song_id]);
+
+    const handleLike = async (e) => {
+        e.stopPropagation();
+        if (!user || likeLoading) return;
+        setLikeLoading(true);
+        const newLiked = await toggleLike(user.user_id, song.song_id);
+        setLiked(newLiked);
+        setLikeLoading(false);
+        if (onLikeChange) onLikeChange(song.song_id, newLiked);
+    };
 
     const formatDuration = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
@@ -86,6 +105,17 @@ export function SongRow({ song, index, showAlbum = false }) {
             {song.streams && (
                 <p className="text-xs text-spotify-subtle w-24 text-right hidden md:block">{song.streams.toLocaleString()} plays</p>
             )}
+            {/* Like Button */}
+            <button
+                onClick={handleLike}
+                className={`p-1.5 rounded-full transition-all duration-200 ${liked
+                        ? 'text-spotify-green hover:text-spotify-green-dark'
+                        : 'text-spotify-subtle opacity-0 group-hover:opacity-100 hover:text-white'
+                    } ${liked ? 'opacity-100' : ''}`}
+                title={liked ? 'Unlike' : 'Like'}
+            >
+                <Heart size={16} className={liked ? 'fill-spotify-green' : ''} />
+            </button>
             <span className="text-xs text-spotify-subtle w-12 text-right">{formatDuration(song.duration_seconds)}</span>
         </div>
     );

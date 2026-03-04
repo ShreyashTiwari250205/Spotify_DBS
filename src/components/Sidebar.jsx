@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Search, Library, ListMusic, Heart, BarChart3, Settings, LogOut, Music2 } from 'lucide-react';
+import { Home, Search, Library, ListMusic, Heart, BarChart3, Settings, LogOut, Music2, Sparkles } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 export default function Sidebar() {
@@ -39,6 +39,7 @@ export default function Sidebar() {
                 <p className="px-4 mb-2 text-[11px] font-semibold uppercase tracking-widest text-spotify-subtle">Your Music</p>
                 <NavLink to="/liked" className={linkClass}><Heart size={18} />Liked Songs</NavLink>
                 <NavLink to="/playlists" className={linkClass}><ListMusic size={18} />Playlists</NavLink>
+                <NavLink to="/wrapped" className={linkClass}><Sparkles size={18} />My Stats</NavLink>
 
                 <div className="my-4 border-t border-white/5" />
 

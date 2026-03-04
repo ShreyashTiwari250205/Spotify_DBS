@@ -256,7 +256,104 @@ export async function getSubscriptionRevenue() {
     return { total: total.toFixed(2), breakdown: { Premium: paid.filter(s => s.plan_type === 'Premium').length, Family: paid.filter(s => s.plan_type === 'Family').length } };
 }
 
-// ── Search ────────────────────────────────
+// ── Genre Trends (last 30 days) ──────────
+export async function getGenreTrends() {
+    const since = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const { data: history } = await supabase.from('listening_history').select('song_id').gte('listened_at', since);
+    if (!history || history.length === 0) return [];
+    const songIds = [...new Set(history.map(h => h.song_id))];
+    const { data: performs } = await supabase.from('performs').select('song_id, artist_id').in('song_id', songIds).eq('role', 'Lead');
+    const artistIds = [...new Set((performs || []).map(p => p.artist_id))];
+    const { data: artists } = await supabase.from('artist').select('artist_id, genre').in('artist_id', artistIds);
+    const artistGenre = {};
+    (artists || []).forEach(a => { artistGenre[a.artist_id] = a.genre; });
+    const songArtist = {};
+    (performs || []).forEach(p => { songArtist[p.song_id] = p.artist_id; });
+    const genreCounts = {};
+    history.forEach(h => {
+        const artistId = songArtist[h.song_id];
+        const genre = artistGenre[artistId];
+        if (genre) genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+    });
+    return Object.entries(genreCounts).map(([genre, count]) => ({ genre, count })).sort((a, b) => b.count - a.count);
+}
+
+// ── Listening Trends (daily counts) ──────
+export async function getListeningTrends(days = 30) {
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+    const { data } = await supabase.from('listening_history').select('listened_at').gte('listened_at', since);
+    if (!data) return [];
+    const dayCounts = {};
+    data.forEach(h => {
+        const day = h.listened_at.split('T')[0];
+        dayCounts[day] = (dayCounts[day] || 0) + 1;
+    });
+    // Fill missing days with 0
+    const result = [];
+    for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(Date.now() - i * 24 * 60 * 60 * 1000);
+        const key = d.toISOString().split('T')[0];
+        result.push({ date: key, plays: dayCounts[key] || 0 });
+    }
+    return result;
+}
+
+// ── User Wrapped / Personal Stats ────────
+export async function getUserWrapped(userId) {
+    const { data: history } = await supabase.from('listening_history').select('song_id, listened_at').eq('user_id', Number(userId));
+    if (!history || history.length === 0) return null;
+    const songIds = [...new Set(history.map(h => h.song_id))];
+    const { data: songs } = await supabase.from('song').select('*').in('song_id', songIds);
+    const { data: performs } = await supabase.from('performs').select('song_id, artist_id').in('song_id', songIds).eq('role', 'Lead');
+    const artistIds = [...new Set((performs || []).map(p => p.artist_id))];
+    const { data: artists } = await supabase.from('artist').select('*').in('artist_id', artistIds);
+
+    // Total minutes
+    const songMap = {};
+    (songs || []).forEach(s => { songMap[s.song_id] = s; });
+    const totalSeconds = history.reduce((sum, h) => sum + (songMap[h.song_id]?.duration_seconds || 0), 0);
+
+    // Top songs
+    const songCounts = {};
+    history.forEach(h => { songCounts[h.song_id] = (songCounts[h.song_id] || 0) + 1; });
+    const topSongIds = Object.entries(songCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const topSongs = topSongIds.map(([id, plays]) => ({ ...(songMap[Number(id)] || {}), plays }));
+
+    // Top artists
+    const songArtist = {};
+    (performs || []).forEach(p => { songArtist[p.song_id] = p.artist_id; });
+    const artistCounts = {};
+    history.forEach(h => {
+        const aid = songArtist[h.song_id];
+        if (aid) artistCounts[aid] = (artistCounts[aid] || 0) + 1;
+    });
+    const topArtistIds = Object.entries(artistCounts).sort((a, b) => b[1] - a[1]).slice(0, 5);
+    const artistMap = {};
+    (artists || []).forEach(a => { artistMap[a.artist_id] = a; });
+    const topArtists = topArtistIds.map(([id, plays]) => ({ ...(artistMap[Number(id)] || {}), plays }));
+
+    // Top genre
+    const genreCounts = {};
+    history.forEach(h => {
+        const aid = songArtist[h.song_id];
+        const genre = artistMap[aid]?.genre;
+        if (genre) genreCounts[genre] = (genreCounts[genre] || 0) + 1;
+    });
+    const topGenre = Object.entries(genreCounts).sort((a, b) => b[1] - a[1])[0];
+
+    return {
+        totalMinutes: Math.round(totalSeconds / 60),
+        totalStreams: history.length,
+        uniqueSongs: songIds.length,
+        uniqueArtists: artistIds.length,
+        topSongs,
+        topArtists,
+        topGenre: topGenre ? { genre: topGenre[0], count: topGenre[1] } : null,
+        genreBreakdown: Object.entries(genreCounts).map(([genre, count]) => ({ genre, count })).sort((a, b) => b.count - a.count),
+    };
+}
+
+
 export async function search(query) {
     const q = `%${query}%`;
     const [artistRes, albumRes, songRes] = await Promise.all([
@@ -274,26 +371,97 @@ export async function search(query) {
 // ── CRUD Operations (for Admin/Demo) ─────
 export async function addSong(song) {
     const { data, error } = await supabase.from('song').insert([song]).select().single();
+    if (error) throw new Error(`Add song failed: ${error.message}`);
     return data;
 }
 export async function updateSong(songId, updates) {
-    const { data } = await supabase.from('song').update(updates).eq('song_id', Number(songId)).select().single();
+    const { data, error } = await supabase.from('song').update(updates).eq('song_id', Number(songId)).select().single();
+    if (error) throw new Error(`Update song failed: ${error.message}`);
     return data;
 }
 export async function deleteSong(songId) {
-    const { data } = await supabase.from('song').delete().eq('song_id', Number(songId)).select().single();
+    // Delete related performs entries first
+    await supabase.from('performs').delete().eq('song_id', Number(songId));
+    const { data, error } = await supabase.from('song').delete().eq('song_id', Number(songId)).select().single();
+    if (error) throw new Error(`Delete song failed: ${error.message}`);
     return data;
 }
 
 export async function addUser(user) {
-    const { data } = await supabase.from('users').insert([user]).select().single();
+    const { data, error } = await supabase.from('users').insert([user]).select().single();
+    if (error) throw new Error(`Add user failed: ${error.message}`);
     return data;
 }
 export async function updateUser(userId, updates) {
-    const { data } = await supabase.from('users').update(updates).eq('user_id', Number(userId)).select().single();
+    const { data, error } = await supabase.from('users').update(updates).eq('user_id', Number(userId)).select().single();
+    if (error) throw new Error(`Update user failed: ${error.message}`);
     return data;
 }
 export async function deleteUser(userId) {
-    const { data } = await supabase.from('users').delete().eq('user_id', Number(userId)).select().single();
+    const { data, error } = await supabase.from('users').delete().eq('user_id', Number(userId)).select().single();
+    if (error) throw new Error(`Delete user failed: ${error.message}`);
     return data;
 }
+
+// ── Interactive Features ─────────────────
+
+// Toggle like on a song (like if not liked, unlike if already liked)
+export async function toggleLike(userId, songId) {
+    const liked = await isLiked(userId, songId);
+    if (liked) {
+        await supabase.from('likes').delete().eq('user_id', Number(userId)).eq('song_id', Number(songId));
+        return false; // now unliked
+    } else {
+        await supabase.from('likes').insert([{ user_id: Number(userId), song_id: Number(songId) }]);
+        return true; // now liked
+    }
+}
+
+// Get like count for a song
+export async function getSongLikeCount(songId) {
+    const { count } = await supabase.from('likes').select('*', { count: 'exact', head: true }).eq('song_id', Number(songId));
+    return count || 0;
+}
+
+// Record a listen (listening history)
+export async function recordListen(userId, songId, deviceType = 'Web') {
+    if (!userId || !songId) return;
+    await supabase.from('listening_history').insert([{
+        user_id: Number(userId),
+        song_id: Number(songId),
+        device_type: deviceType
+    }]);
+}
+
+// Create a new playlist
+export async function createPlaylist(userId, playlistName) {
+    const { data } = await supabase.from('playlist').insert([{
+        playlist_name: playlistName,
+        user_id: Number(userId)
+    }]).select().single();
+    return data;
+}
+
+// Delete a playlist
+export async function deletePlaylist(playlistId) {
+    await supabase.from('playlist_song').delete().eq('playlist_id', Number(playlistId));
+    const { data } = await supabase.from('playlist').delete().eq('playlist_id', Number(playlistId)).select().single();
+    return data;
+}
+
+// Add a song to a playlist
+export async function addToPlaylist(playlistId, songId) {
+    const { data, error } = await supabase.from('playlist_song').insert([{
+        playlist_id: Number(playlistId),
+        song_id: Number(songId)
+    }]).select().single();
+    return { data, error };
+}
+
+// Remove a song from a playlist
+export async function removeFromPlaylist(playlistId, songId) {
+    await supabase.from('playlist_song').delete()
+        .eq('playlist_id', Number(playlistId))
+        .eq('song_id', Number(songId));
+}
+

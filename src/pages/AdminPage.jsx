@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { getSongs, getUsers, getAlbums, addSong, updateSong, deleteSong, addUser, updateUser, deleteUser, getSongArtists } from '../services/api';
 import { Settings, Plus, Pencil, Trash2, X } from 'lucide-react';
 
@@ -35,8 +36,9 @@ export default function AdminPage() {
             {activeTab === 'Songs' && <SongsTable onEdit={(item) => { setEditItem(item); setShowModal(true); }} refreshKey={refreshKey} onRefresh={handleRefresh} />}
             {activeTab === 'Users' && <UsersTable onEdit={(item) => { setEditItem(item); setShowModal(true); }} refreshKey={refreshKey} onRefresh={handleRefresh} />}
 
-            {showModal && (
-                <Modal type={activeTab.slice(0, -1)} item={editItem} onClose={() => { setShowModal(false); setEditItem(null); }} onSave={handleRefresh} />
+            {showModal && createPortal(
+                <Modal type={activeTab.slice(0, -1)} item={editItem} onClose={() => { setShowModal(false); setEditItem(null); }} onSave={handleRefresh} />,
+                document.body
             )}
         </div>
     );
@@ -54,7 +56,6 @@ function SongsTable({ onEdit, refreshKey, onRefresh }) {
             const [s, al] = await Promise.all([getSongs(), getAlbums()]);
             setSongs(s.slice(0, 30));
             setAlbums(al);
-            // Load artists for first 30 songs
             const artistMap = {};
             await Promise.all(s.slice(0, 30).map(async (song) => {
                 const artists = await getSongArtists(song.song_id);
@@ -175,6 +176,8 @@ function Modal({ type, item, onClose, onSave }) {
     const isEdit = !!item;
     const [albums, setAlbums] = useState([]);
     const [saving, setSaving] = useState(false);
+    const [error, setError] = useState('');
+    const [albumsLoaded, setAlbumsLoaded] = useState(type !== 'Song');
 
     const [form, setForm] = useState(
         type === 'Song'
@@ -184,57 +187,119 @@ function Modal({ type, item, onClose, onSave }) {
 
     useEffect(() => {
         if (type === 'Song') {
-            getAlbums().then(setAlbums);
+            getAlbums()
+                .then(al => {
+                    setAlbums(al || []);
+                    if (!isEdit && al && al.length > 0) {
+                        setForm(prev => ({ ...prev, album_id: al[0].album_id }));
+                    }
+                    setAlbumsLoaded(true);
+                })
+                .catch(() => {
+                    setAlbumsLoaded(true);
+                    setError('Could not load albums. You can type the album ID manually.');
+                });
         }
     }, [type]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setError('');
         setSaving(true);
-        if (type === 'Song') {
-            if (isEdit) await updateSong(item.song_id, form);
-            else await addSong(form);
-        } else {
-            if (isEdit) await updateUser(item.user_id, form);
-            else await addUser(form);
+        try {
+            if (type === 'Song') {
+                const songData = {
+                    title: form.title,
+                    duration_seconds: Number(form.duration_seconds),
+                    album_id: Number(form.album_id),
+                    release_date: form.release_date,
+                };
+                if (isEdit) {
+                    await updateSong(item.song_id, songData);
+                } else {
+                    await addSong(songData);
+                }
+            } else {
+                const userData = {
+                    name: form.name,
+                    email: form.email,
+                    date_of_birth: form.date_of_birth,
+                    country: form.country,
+                };
+                if (isEdit) {
+                    await updateUser(item.user_id, userData);
+                } else {
+                    await addUser(userData);
+                }
+            }
+            setSaving(false);
+            onSave();
+            onClose();
+        } catch (err) {
+            setSaving(false);
+            setError(err.message || 'Operation failed');
         }
-        setSaving(false);
-        onSave();
-        onClose();
     };
 
     return (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4" style={{ zIndex: 9999 }} onClick={onClose}>
             <div className="bg-spotify-dark rounded-2xl p-6 w-full max-w-md border border-white/10 animate-slide-up" onClick={e => e.stopPropagation()}>
                 <div className="flex items-center justify-between mb-6">
-                    <h2 className="text-lg font-bold">{isEdit ? 'Edit' : 'Add'} {type}</h2>
-                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition"><X size={18} /></button>
+                    <h2 className="text-lg font-bold text-white">{isEdit ? 'Edit' : 'Add'} {type}</h2>
+                    <button onClick={onClose} className="p-1.5 rounded-lg hover:bg-white/10 transition text-white"><X size={18} /></button>
                 </div>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    {type === 'Song' ? (
-                        <>
-                            <Field label="Title" value={form.title} onChange={v => setForm({ ...form, title: v })} />
-                            <Field label="Duration (seconds)" type="number" value={form.duration_seconds} onChange={v => setForm({ ...form, duration_seconds: Number(v) })} />
-                            <div>
-                                <label className="block text-xs text-spotify-subtle mb-1.5">Album</label>
-                                <select value={form.album_id} onChange={e => setForm({ ...form, album_id: Number(e.target.value) })} className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-spotify-green">
-                                    {albums.map(a => <option key={a.album_id} value={a.album_id}>{a.title}</option>)}
-                                </select>
-                            </div>
-                            <Field label="Release Date" type="date" value={form.release_date} onChange={v => setForm({ ...form, release_date: v })} />
-                        </>
-                    ) : (
-                        <>
-                            <Field label="Name" value={form.name} onChange={v => setForm({ ...form, name: v })} />
-                            <Field label="Email" type="email" value={form.email} onChange={v => setForm({ ...form, email: v })} />
-                            <Field label="Date of Birth" type="date" value={form.date_of_birth} onChange={v => setForm({ ...form, date_of_birth: v })} />
-                            <Field label="Country" value={form.country} onChange={v => setForm({ ...form, country: v })} />
-                        </>
-                    )}
-                    <button type="submit" disabled={saving} className="w-full py-3 rounded-full bg-spotify-green text-black font-semibold text-sm hover:bg-spotify-green-dark transition disabled:opacity-50">
-                        {saving ? 'Saving...' : (isEdit ? 'Update' : 'Add')} {!saving && type}
-                    </button>
-                </form>
+
+                {error && (
+                    <div className="mb-4 p-3 rounded-lg bg-red-500/10 border border-red-500/20 text-red-400 text-sm">
+                        {error}
+                    </div>
+                )}
+
+                {!albumsLoaded ? (
+                    <div className="text-spotify-subtle text-center py-8 animate-pulse">Loading albums...</div>
+                ) : (
+                    <form onSubmit={handleSubmit} className="space-y-4">
+                        {type === 'Song' ? (
+                            <>
+                                <Field label="Title" value={form.title} onChange={v => setForm({ ...form, title: v })} />
+                                <Field label="Duration (seconds)" type="number" value={form.duration_seconds} onChange={v => setForm({ ...form, duration_seconds: Number(v) })} />
+                                <div>
+                                    <label className="block text-xs text-spotify-subtle mb-1.5">Album</label>
+                                    {albums.length > 0 ? (
+                                        <select
+                                            value={form.album_id}
+                                            onChange={e => setForm({ ...form, album_id: Number(e.target.value) })}
+                                            className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-spotify-green"
+                                            required
+                                        >
+                                            {albums.map(a => <option key={a.album_id} value={a.album_id}>{a.title}</option>)}
+                                        </select>
+                                    ) : (
+                                        <input
+                                            type="number"
+                                            value={form.album_id}
+                                            onChange={e => setForm({ ...form, album_id: Number(e.target.value) })}
+                                            className="w-full px-4 py-2.5 rounded-lg bg-white/5 border border-white/10 text-white text-sm focus:outline-none focus:border-spotify-green"
+                                            placeholder="Album ID"
+                                            required
+                                        />
+                                    )}
+                                </div>
+                                <Field label="Release Date" type="date" value={form.release_date} onChange={v => setForm({ ...form, release_date: v })} />
+                            </>
+                        ) : (
+                            <>
+                                <Field label="Name" value={form.name} onChange={v => setForm({ ...form, name: v })} />
+                                <Field label="Email" type="email" value={form.email} onChange={v => setForm({ ...form, email: v })} />
+                                <Field label="Date of Birth" type="date" value={form.date_of_birth} onChange={v => setForm({ ...form, date_of_birth: v })} />
+                                <Field label="Country" value={form.country} onChange={v => setForm({ ...form, country: v })} />
+                            </>
+                        )}
+                        <button type="submit" disabled={saving} className="w-full py-3 rounded-full bg-spotify-green text-black font-semibold text-sm hover:bg-spotify-green-dark transition disabled:opacity-50">
+                            {saving ? 'Saving...' : (isEdit ? 'Update' : 'Add')} {!saving && type}
+                        </button>
+                    </form>
+                )}
             </div>
         </div>
     );
